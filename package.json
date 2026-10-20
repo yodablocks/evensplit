@@ -6,6 +6,8 @@
     "node": ">=22.13"
   },
   "scripts": {
+    "dev:server": "tsx watch src/server/index.ts",
+    "start:server": "tsx src/server/index.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
