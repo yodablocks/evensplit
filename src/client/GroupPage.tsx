@@ -11,6 +11,7 @@ export function GroupPage({ groupId }: { groupId: string }) {
   const { snapshot, error, refresh } = useGroup(groupId);
   const [editing, setEditing] = useState<Expense | 'new' | null>(null);
   const [copied, setCopied] = useState(false);
+  const [showLink, setShowLink] = useState(false);
 
   if (!snapshot) {
     return (
@@ -47,9 +48,14 @@ export function GroupPage({ groupId }: { groupId: string }) {
   }
 
   async function copyLink() {
-    await navigator.clipboard.writeText(location.href);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(location.href);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // The clipboard needs https or localhost (e.g. not http://192.168.x.x).
+      setShowLink(true);
+    }
   }
 
   return (
@@ -60,6 +66,13 @@ export function GroupPage({ groupId }: { groupId: string }) {
           {copied ? 'Copied' : 'Copy link'}
         </button>
       </header>
+
+      {showLink && (
+        <label>
+          Share this link
+          <input readOnly value={location.href} onFocus={(e) => e.target.select()} autoFocus />
+        </label>
+      )}
 
       <section className="card">
         <h2>Settle up</h2>
