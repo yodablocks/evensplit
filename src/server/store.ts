@@ -3,8 +3,6 @@
 
 import { randomBytes } from 'node:crypto';
 import {
-  type Balance,
-  type Payment,
   type Share,
   type Split,
   type SplitType,
@@ -12,36 +10,9 @@ import {
   computeShares,
   settleUp,
 } from '../shared/money';
+import type { Expense, ExpenseInput, GroupSnapshot, Member } from '../shared/types';
 import { type Db, transaction } from './db';
 import { ApiError } from './errors';
-
-export interface Member {
-  id: number;
-  name: string;
-}
-
-export interface ExpenseInput {
-  description: string;
-  amountCents: number;
-  paidBy: number;
-  split: Split;
-}
-
-export interface Expense extends ExpenseInput {
-  id: number;
-  shares: Share[];
-  version: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface GroupSnapshot {
-  group: { id: string; name: string; version: number };
-  members: Member[];
-  expenses: Expense[]; // newest first, deleted ones excluded
-  balances: Balance[];
-  settlement: Payment[];
-}
 
 interface ExpenseRow {
   id: number;
