@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { formatCents } from '../shared/money';
 import type { Expense, Member } from '../shared/types';
 import { RequestError, api } from './api';
@@ -45,6 +45,12 @@ export function GroupPage({ groupId }: { groupId: string }) {
         }}
       />
     );
+  }
+
+  // Close the share-link box so it doesn't grab focus again on the way back.
+  function openForm(expense: Expense | 'new') {
+    setShowLink(false);
+    setEditing(expense);
   }
 
   async function copyLink() {
@@ -118,7 +124,7 @@ export function GroupPage({ groupId }: { groupId: string }) {
           <ul className="list">
             {expenses.map((e) => (
               <li key={e.id}>
-                <button className="expense" onClick={() => setEditing(e)}>
+                <button className="expense" onClick={() => openForm(e)}>
                   <span>
                     <span className="expense-title">{e.description}</span>
                     <span className="muted small-text">
@@ -133,32 +139,44 @@ export function GroupPage({ groupId }: { groupId: string }) {
         )}
       </section>
 
-      <Members groupId={groupId} members={members} onChange={refresh} />
+      <Members groupId={groupId} members={members} version={group.version} onChange={refresh} />
 
       <div className="bottom-bar">
-        <button onClick={() => setEditing('new')}>Add expense</button>
+        <button onClick={() => openForm('new')}>Add expense</button>
       </div>
     </main>
   );
 }
 
-function Members(props: { groupId: string; members: Member[]; onChange: () => Promise<void> }) {
-  const { groupId, members, onChange } = props;
+function Members(props: {
+  groupId: string;
+  members: Member[];
+  version: number;
+  onChange: () => Promise<void>;
+}) {
+  const { groupId, members, version, onChange } = props;
   const [newName, setNewName] = useState('');
   const [renaming, setRenaming] = useState<{ id: number; name: string } | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // Shown under the member's own row, or under the Add field (memberId null).
+  const [error, setError] = useState<{ memberId: number | null; message: string } | null>(null);
 
-  async function run(action: () => Promise<unknown>) {
+  // A message like "Ana is in 3 expenses" goes stale once the data changes.
+  useEffect(() => setError(null), [version]);
+
+  async function run(memberId: number | null, action: () => Promise<unknown>) {
+    setError(null);
     try {
       await action();
-      setError(null);
       await onChange();
       return true;
     } catch (err) {
-      setError((err as RequestError).message);
+      setError({ memberId, message: errorMessage(err as RequestError, members, memberId) });
       return false;
     }
   }
+
+  const rowError = (memberId: number) =>
+    error?.memberId === memberId && <p className="error">{error.message}</p>;
 
   return (
     <section className="card">
@@ -171,7 +189,7 @@ function Members(props: { groupId: string; members: Member[]; onChange: () => Pr
                 className="row"
                 onSubmit={async (e) => {
                   e.preventDefault();
-                  if (await run(() => api.renameMember(groupId, m.id, renaming.name))) setRenaming(null);
+                  if (await run(m.id, () => api.renameMember(groupId, m.id, renaming.name))) setRenaming(null);
                 }}
               >
                 <input
@@ -184,18 +202,22 @@ function Members(props: { groupId: string; members: Member[]; onChange: () => Pr
                   Cancel
                 </button>
               </form>
+              {rowError(m.id)}
             </li>
           ) : (
-            <li key={m.id} className="row spread">
-              <span>{m.name}</span>
-              <span className="row">
-                <button className="link" onClick={() => setRenaming({ id: m.id, name: m.name })}>
-                  Rename
-                </button>
-                <button className="link danger" onClick={() => run(() => api.removeMember(groupId, m.id))}>
-                  Remove
-                </button>
-              </span>
+            <li key={m.id}>
+              <div className="row spread">
+                <span>{m.name}</span>
+                <span className="row">
+                  <button className="link" onClick={() => setRenaming({ id: m.id, name: m.name })}>
+                    Rename
+                  </button>
+                  <button className="link danger" onClick={() => run(m.id, () => api.removeMember(groupId, m.id))}>
+                    Remove
+                  </button>
+                </span>
+              </div>
+              {rowError(m.id)}
             </li>
           ),
         )}
@@ -204,7 +226,7 @@ function Members(props: { groupId: string; members: Member[]; onChange: () => Pr
         className="row"
         onSubmit={async (e) => {
           e.preventDefault();
-          if (await run(() => api.addMember(groupId, newName))) setNewName('');
+          if (await run(null, () => api.addMember(groupId, newName))) setNewName('');
         }}
       >
         <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Add a person" />
@@ -212,7 +234,16 @@ function Members(props: { groupId: string; members: Member[]; onChange: () => Pr
           Add
         </button>
       </form>
-      {error && <p className="error">{error}</p>}
+      {error?.memberId === null && <p className="error">{error.message}</p>}
     </section>
   );
+}
+
+function errorMessage(err: RequestError, members: Member[], memberId: number | null): string {
+  const name = members.find((m) => m.id === memberId)?.name;
+  if (err.code === 'member_has_expenses' && name) {
+    const count = Number(err.details.expenseCount);
+    return `${name} is in ${count} expense${count === 1 ? '' : 's'} and can't be removed`;
+  }
+  return err.message;
 }
