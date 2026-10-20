@@ -1,0 +1,249 @@
+import { useEffect, useState } from 'react';
+import { formatCents } from '../shared/money';
+import type { Expense, Member } from '../shared/types';
+import { RequestError, api } from './api';
+import { ExpenseForm } from './ExpenseForm';
+import { useGroup } from './useGroup';
+
+const SPLIT_LABELS = { equal: 'split equally', exact: 'split by amounts', percent: 'split by %' };
+
+export function GroupPage({ groupId }: { groupId: string }) {
+  const { snapshot, error, refresh } = useGroup(groupId);
+  const [editing, setEditing] = useState<Expense | 'new' | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [showLink, setShowLink] = useState(false);
+
+  if (!snapshot) {
+    return (
+      <main className="page">
+        {error ? (
+          <>
+            <p className="error">
+              {error.status === 404 ? "This group doesn't exist. Check the link." : error.message}
+            </p>
+            <a href="/">Start a new group</a>
+          </>
+        ) : (
+          <p className="muted">Loading…</p>
+        )}
+      </main>
+    );
+  }
+
+  const { group, members, expenses, balances, settlement } = snapshot;
+  const nameOf = (id: number) => members.find((m) => m.id === id)?.name ?? 'Someone';
+
+  if (editing) {
+    return (
+      <ExpenseForm
+        groupId={groupId}
+        members={members}
+        expense={editing === 'new' ? undefined : editing}
+        onDone={() => {
+          setEditing(null);
+          void refresh();
+        }}
+      />
+    );
+  }
+
+  // Close the share-link box so it doesn't grab focus again on the way back.
+  function openForm(expense: Expense | 'new') {
+    setShowLink(false);
+    setEditing(expense);
+  }
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(location.href);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // The clipboard needs https or localhost (e.g. not http://192.168.x.x).
+      setShowLink(true);
+    }
+  }
+
+  return (
+    <main className="page with-bottom-bar">
+      <header className="row spread">
+        <h1>{group.name}</h1>
+        <button className="secondary small" onClick={copyLink}>
+          {copied ? 'Copied' : 'Copy link'}
+        </button>
+      </header>
+
+      {showLink && (
+        <label>
+          Share this link
+          <input readOnly value={location.href} onFocus={(e) => e.target.select()} autoFocus />
+        </label>
+      )}
+
+      <section className="card">
+        <h2>Settle up</h2>
+        {settlement.length === 0 ? (
+          <p className="muted">Everyone is even.</p>
+        ) : (
+          <ul className="list">
+            {settlement.map((p) => (
+              <li key={`${p.from}-${p.to}`} className="row spread">
+                <span>
+                  <strong>{nameOf(p.from)}</strong> pays <strong>{nameOf(p.to)}</strong>
+                </span>
+                <span className="amount">{formatCents(p.amountCents)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="card">
+        <h2>Balances</h2>
+        <ul className="list">
+          {balances.map((b) => (
+            <li key={b.memberId} className="row spread">
+              <span>{nameOf(b.memberId)}</span>
+              <span className={b.balanceCents > 0 ? 'pos' : b.balanceCents < 0 ? 'neg' : 'muted'}>
+                {b.balanceCents > 0
+                  ? `gets back ${formatCents(b.balanceCents)}`
+                  : b.balanceCents < 0
+                    ? `owes ${formatCents(-b.balanceCents)}`
+                    : 'even'}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="card">
+        <h2>Expenses</h2>
+        {expenses.length === 0 ? (
+          <p className="muted">No expenses yet.</p>
+        ) : (
+          <ul className="list">
+            {expenses.map((e) => (
+              <li key={e.id}>
+                <button className="expense" onClick={() => openForm(e)}>
+                  <span>
+                    <span className="expense-title">{e.description}</span>
+                    <span className="muted small-text">
+                      {nameOf(e.paidBy)} paid, {SPLIT_LABELS[e.split.type]}
+                    </span>
+                  </span>
+                  <span className="amount">{formatCents(e.amountCents)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <Members groupId={groupId} members={members} version={group.version} onChange={refresh} />
+
+      <div className="bottom-bar">
+        <button onClick={() => openForm('new')}>Add expense</button>
+      </div>
+    </main>
+  );
+}
+
+function Members(props: {
+  groupId: string;
+  members: Member[];
+  version: number;
+  onChange: () => Promise<void>;
+}) {
+  const { groupId, members, version, onChange } = props;
+  const [newName, setNewName] = useState('');
+  const [renaming, setRenaming] = useState<{ id: number; name: string } | null>(null);
+  // Shown under the member's own row, or under the Add field (memberId null).
+  const [error, setError] = useState<{ memberId: number | null; message: string } | null>(null);
+
+  // A message like "Ana is in 3 expenses" goes stale once the data changes.
+  useEffect(() => setError(null), [version]);
+
+  async function run(memberId: number | null, action: () => Promise<unknown>) {
+    setError(null);
+    try {
+      await action();
+      await onChange();
+      return true;
+    } catch (err) {
+      setError({ memberId, message: errorMessage(err as RequestError, members, memberId) });
+      return false;
+    }
+  }
+
+  const rowError = (memberId: number) =>
+    error?.memberId === memberId && <p className="error">{error.message}</p>;
+
+  return (
+    <section className="card">
+      <h2>People</h2>
+      <ul className="list">
+        {members.map((m) =>
+          renaming?.id === m.id ? (
+            <li key={m.id}>
+              <form
+                className="row"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (await run(m.id, () => api.renameMember(groupId, m.id, renaming.name))) setRenaming(null);
+                }}
+              >
+                <input
+                  value={renaming.name}
+                  onChange={(e) => setRenaming({ id: m.id, name: e.target.value })}
+                  autoFocus
+                />
+                <button type="submit" className="small">Save</button>
+                <button type="button" className="secondary small" onClick={() => setRenaming(null)}>
+                  Cancel
+                </button>
+              </form>
+              {rowError(m.id)}
+            </li>
+          ) : (
+            <li key={m.id}>
+              <div className="row spread">
+                <span>{m.name}</span>
+                <span className="row">
+                  <button className="link" onClick={() => setRenaming({ id: m.id, name: m.name })}>
+                    Rename
+                  </button>
+                  <button className="link danger" onClick={() => run(m.id, () => api.removeMember(groupId, m.id))}>
+                    Remove
+                  </button>
+                </span>
+              </div>
+              {rowError(m.id)}
+            </li>
+          ),
+        )}
+      </ul>
+      <form
+        className="row"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (await run(null, () => api.addMember(groupId, newName))) setNewName('');
+        }}
+      >
+        <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Add a person" />
+        <button type="submit" className="secondary" disabled={!newName.trim()}>
+          Add
+        </button>
+      </form>
+      {error?.memberId === null && <p className="error">{error.message}</p>}
+    </section>
+  );
+}
+
+function errorMessage(err: RequestError, members: Member[], memberId: number | null): string {
+  const name = members.find((m) => m.id === memberId)?.name;
+  if (err.code === 'member_has_expenses' && name) {
+    const count = Number(err.details.expenseCount);
+    return `${name} is in ${count} expense${count === 1 ? '' : 's'} and can't be removed`;
+  }
+  return err.message;
+}
