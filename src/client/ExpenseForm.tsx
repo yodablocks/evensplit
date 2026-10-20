@@ -22,6 +22,7 @@ interface FormState {
 }
 
 const lastPayerKey = (groupId: string) => `evensplit:lastPayer:${groupId}`;
+const DEFAULT_DESCRIPTION = 'Expense';
 
 function initialState(groupId: string, members: Member[], expense?: Expense): FormState {
   if (expense) {
@@ -102,7 +103,8 @@ function preview(form: FormState, members: Member[]) {
   let input: ExpenseInput | null = null;
   if (!status && amountCents !== null) {
     input = {
-      description: form.description.trim(),
+      // Saving with just an amount is the fast path; the server still requires a description.
+      description: form.description.trim() || DEFAULT_DESCRIPTION,
       amountCents,
       paidBy: form.paidBy,
       split: { type: form.type, entries },
@@ -209,7 +211,7 @@ export function ExpenseForm(props: {
           <input
             value={form.description}
             onChange={(e) => update({ description: e.target.value })}
-            placeholder="Dinner"
+            placeholder={`Optional (saved as "${DEFAULT_DESCRIPTION}")`}
             maxLength={100}
             enterKeyHint="done"
           />
@@ -286,9 +288,7 @@ export function ExpenseForm(props: {
               </li>
             ))}
           </ul>
-          <p className={status ? 'status' : 'status ok'}>
-            {status || (form.description.trim() ? 'Adds up' : 'Adds up. Now say what it was for.')}
-          </p>
+          <p className={status ? 'status' : 'status ok'}>{status || 'Adds up'}</p>
         </fieldset>
 
         {error && <p className="error">{error}</p>}
@@ -301,7 +301,7 @@ export function ExpenseForm(props: {
       </form>
 
       <div className="bottom-bar">
-        <button type="submit" form="expense-form" disabled={!input || !input.description || busy}>
+        <button type="submit" form="expense-form" disabled={!input || busy}>
           {base ? 'Save changes' : 'Save'}
         </button>
       </div>
