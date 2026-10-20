@@ -76,7 +76,7 @@ export function createGroup(db: Db, name: string, memberNames: string[]): string
     keys.add(nameKey(memberName));
   }
 
-  const groupId = randomBytes(9).toString('base64url'); // 72 random bits
+  const groupId = randomBytes(16).toString('base64url'); // 128 random bits: the link is the only access control
   transaction(db, () => {
     db.prepare('INSERT INTO groups (id, name) VALUES (?, ?)').run(groupId, name);
     const insert = db.prepare('INSERT INTO members (group_id, name, name_key) VALUES (?, ?, ?)');
