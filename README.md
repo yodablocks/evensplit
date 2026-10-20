@@ -172,11 +172,13 @@ CLAUDE.md             conventions for working in this repo with an AI assistant
 
 ## Timeline
 
-All times on 2026-10-20 (UTC+8).
+Times are UTC+8. Everything except the first 10 minutes of design was on 2026-10-20.
 
-- **Design: DESIGN_TIME_TODO.** I worked out the design in a question-and-answer
-  session with Claude, then wrote SPEC.md. The spec was the first commit
-  (10:26), followed by CLAUDE.md (PR #1).
+- **Design: about 35 minutes.**
+  - About 10 minutes on 2026-10-19 looking at the problem.
+  - 10:10 to 10:26: working through the design questions with Claude, which
+    wrote SPEC.md from my answers. The spec was the first commit (10:26).
+  - 10:26 to 10:36: reviewing SPEC.md and CLAUDE.md (PR #1).
 - **Build: 10:36 to 10:56, about 20 minutes.** Money logic and tests
   (PR #2), API (PR #3) and frontend (PR #4). I reviewed and merged each PR
   before the next branch started. My review time is included.
@@ -191,8 +193,8 @@ after the API code, not before.
 ## How I worked with Claude
 
 I used Claude Code for the whole project. How the work was split:
-- **Design was mine.** Claude asked one question at a time, challenged each
-  answer, then wrote SPEC.md from my answers. I reviewed every line before
+- **The design decisions were mine.** Claude asked one question at a time,
+  challenged each answer, then wrote SPEC.md from my answers. I reviewed every line before
   the first commit.
 - **Claude wrote the code**, on one branch and pull request per layer
   (money, API, frontend, README). I reviewed and merged each PR myself.
