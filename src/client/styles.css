@@ -19,6 +19,11 @@
   box-sizing: border-box;
 }
 
+html {
+  /* Keep scrolled-to and focused elements clear of the fixed bottom bar. */
+  scroll-padding-bottom: 6rem;
+}
+
 body {
   margin: 0;
 }
