@@ -178,7 +178,7 @@ Times are UTC+8. Everything except the first 10 minutes of design was on 2026-10
   - About 10 minutes on 2026-10-19 looking at the problem.
   - 10:10 to 10:26: working through the design questions with Claude, which
     wrote SPEC.md from my answers. The spec was the first commit (10:26).
-  - 10:26 to 10:36: reviewing SPEC.md and CLAUDE.md (PR #1).
+  - 10:26 to 10:36: reviewing CLAUDE.md (PR #1).
 - **Build: 10:36 to 10:56, about 20 minutes.** Money logic and tests
   (PR #2), API (PR #3) and frontend (PR #4). I reviewed and merged each PR
   before the next branch started. My review time is included.
