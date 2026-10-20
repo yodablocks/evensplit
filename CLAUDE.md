@@ -15,13 +15,13 @@ The design is in [SPEC.md](SPEC.md). Read it before changing behavior.
 
 ## Commands
 
-These scripts are added with the scaffold.
-
 ```
-nvm use          # Node 22
+nvm use             # Node 22
 npm install
-npm test         # Vitest
-npm run dev      # API and client in watch mode
+npm start           # build the client, serve app and API on :3000
+npm run dev         # API (:3000) and Vite (:5173) in watch mode
+npm test            # Vitest: money module and API
+npm run typecheck   # server and client
 ```
 
 ## Money rules
